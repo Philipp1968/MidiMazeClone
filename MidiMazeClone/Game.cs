@@ -26,19 +26,76 @@ namespace MidiMazeClone
             Screen = new FrameBuffer(ViewWidth, ViewHeight);
             ShowMap = options.ShowMap;
 
-            Maze maze = LoadMaze(options.MazePath);
-
             int seed = options.Seed;
             if (seed == 0)
             {
                 seed = Environment.TickCount;
             }
 
-            _world = new World(maze, seed);
-            _localPlayer = _world.AddPlayer("YOU", Palette.PlayerColors[0], false);
-            LocalControls = _localPlayer.Controls;
+            if (options.Scene == "lineup")
+            {
+                _world = CreateLineupScene(seed);
+                _localPlayer = _world.Players[0];
+            }
+            else
+            {
+                Maze maze = LoadMaze(options.MazePath);
+                _world = new World(maze, seed);
+                _localPlayer = _world.AddPlayer("YOU", Palette.PlayerColors[0], false);
+                _world.AddPlayer("BOT 1", Palette.PlayerColors[1], true);
+                _world.AddPlayer("BOT 2", Palette.PlayerColors[2], true);
+                _world.AddPlayer("BOT 3", Palette.PlayerColors[3], true);
+            }
 
+            LocalControls = _localPlayer.Controls;
             _renderer = new Renderer(ViewWidth, ViewHeight);
+        }
+
+        /// <summary>
+        /// Fixed test scene for tuning the smiley rendering: a room with a pillar, the viewer
+        /// looking east, one opponent facing us, one in profile, one showing their back,
+        /// and one half hidden behind the pillar corner.
+        /// </summary>
+        private static World CreateLineupScene(int seed)
+        {
+            string[] lines =
+            {
+                "############",
+                "#..........#",
+                "#..........#",
+                "#....##....#",
+                "#....##....#",
+                "#..........#",
+                "#..........#",
+                "############",
+            };
+            Maze maze = Maze.Parse(lines);
+            World world = new World(maze, seed);
+
+            Player viewer = world.AddPlayer("YOU", Palette.PlayerColors[0], false);
+            PlacePlayer(viewer, 2.5, 4.0, 0.0);
+
+            Player facing = world.AddPlayer("FACE", Palette.PlayerColors[1], false);
+            PlacePlayer(facing, 4.2, 4.0, Math.PI);
+
+            Player profile = world.AddPlayer("SIDE", Palette.PlayerColors[2], false);
+            PlacePlayer(profile, 5.5, 2.2, MathUtil.HalfPi);
+
+            Player back = world.AddPlayer("BACK", Palette.PlayerColors[3], false);
+            PlacePlayer(back, 5.5, 5.8, 0.0);
+
+            Player corner = world.AddPlayer("CORNER", Palette.PlayerColors[1], false);
+            PlacePlayer(corner, 7.5, 2.0, Math.PI);
+
+            return world;
+        }
+
+        private static void PlacePlayer(Player player, double x, double y, double angle)
+        {
+            player.X = x;
+            player.Y = y;
+            player.Angle = angle;
+            player.Shield = 0.0;
         }
 
         /// <summary>

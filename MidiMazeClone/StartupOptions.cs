@@ -13,6 +13,7 @@ namespace MidiMazeClone
         public string? ScreenshotPath;
         public bool ShowMap;
         public bool DriveForward;        // screenshot mode: hold "forward" during the warmup
+        public string? Scene;            // fixed test scene instead of a normal game, e.g. "lineup"
         public int Seed;                 // 0 = pick a random seed
         public double WarmupSeconds;     // simulation time to run before taking a screenshot
 
@@ -54,6 +55,13 @@ namespace MidiMazeClone
                 if (arg == "--warmup" && next != null)
                 {
                     options.WarmupSeconds = double.Parse(next, CultureInfo.InvariantCulture);
+                    i += 2;
+                    continue;
+                }
+
+                if (arg == "--scene" && next != null)
+                {
+                    options.Scene = next;
                     i += 2;
                     continue;
                 }
