@@ -79,6 +79,11 @@ namespace MidiMazeClone
 
         private void UpdatePlayer(Player player, double dt)
         {
+            if (player.Brain != null)
+            {
+                player.Brain.Think(this, player, dt);
+            }
+
             Controls controls = player.Controls;
 
             if (controls.TurnLeft)
@@ -183,6 +188,10 @@ namespace MidiMazeClone
             Shots.Add(shot);
 
             player.FireCooldown = FireInterval;
+            if (player.IsBot)
+            {
+                player.FireCooldown = FireInterval * 2.0;   // bots shoot slower, humans need a chance
+            }
         }
 
         private void UpdateShots(double dt)

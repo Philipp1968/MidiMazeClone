@@ -42,9 +42,9 @@ namespace MidiMazeClone
                 Maze maze = LoadMaze(options.MazePath);
                 _world = new World(maze, seed);
                 _localPlayer = _world.AddPlayer("YOU", Palette.PlayerColors[0], false);
-                _world.AddPlayer("BOT 1", Palette.PlayerColors[1], true);
-                _world.AddPlayer("BOT 2", Palette.PlayerColors[2], true);
-                _world.AddPlayer("BOT 3", Palette.PlayerColors[3], true);
+                AddBot("BOT 1", Palette.PlayerColors[1]);
+                AddBot("BOT 2", Palette.PlayerColors[2]);
+                AddBot("BOT 3", Palette.PlayerColors[3]);
             }
 
             LocalControls = _localPlayer.Controls;
@@ -96,6 +96,12 @@ namespace MidiMazeClone
             player.Y = y;
             player.Angle = angle;
             player.Shield = 0.0;
+        }
+
+        private void AddBot(string name, int color)
+        {
+            Player bot = _world.AddPlayer(name, color, true);
+            bot.Brain = new BotBrain();
         }
 
         /// <summary>

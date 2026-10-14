@@ -25,6 +25,9 @@ namespace MidiMazeClone
         public double Shield;          // seconds of invulnerability after a respawn
         public double HitFlash;        // seconds the own view flashes after being hit
 
+        /// <summary>Fills Controls each tick for computer players; null for humans.</summary>
+        public BotBrain? Brain;
+
         public Player(string name, int color, bool isBot)
         {
             Name = name;
