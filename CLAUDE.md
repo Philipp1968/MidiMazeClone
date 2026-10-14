@@ -114,9 +114,10 @@ Movement and rules in `World` (`TurnSpeed`, `BotTurnSpeed`, `MoveSpeed`, `FireIn
 `WinScore`), shot speed in `Shot`, field of view and smiley size in `Renderer`, bot behaviour
 in `BotBrain`, colours in `Palette`.
 
-## Status (2026-10-14)
+## Status (2026-10-14, end of the first session)
 
-Done, one commit per milestone:
+The game is playable single-player against three bots: all milestones done, one commit each,
+build clean with zero warnings. Everything was written in one session on 2026-10-14.
 
 1. Window, frame buffer, vsync loop, font, FPS counter
 2. Maze file, movement with wall sliding, top-down map
@@ -125,12 +126,38 @@ Done, one commit per milestone:
 5. Shots, hits, respawn with shield, scoreboard, win banner, restart
 6. Bot opponents (wander + engage)
 
+Tuning and features after the milestones, from the first play tests:
+
+- Turn speed 2.6 -> 3.0 rad/s for humans; bots keep 2.6 (`BotTurnSpeed`).
+- Bots aim with a random error of up to 0.12 rad, re-rolled every 0.6 s (`AimJitter`), so they
+  hit up close and miss at range.
+- Sound for shots and hits. First with `System.Media.SoundPlayer` (one sound at a time), then
+  replaced by the waveOut software mixer (overlap, volume by distance). Verified only through
+  `--audiotest` (device opens, buffers drain in real time); the actual sound has not been judged
+  by ear yet.
+- New default maze `classic.txt` with rooms, wide corridors and pillars; the first single-tile
+  maze lives on as `tunnels.txt`.
+- Bots wander to random target cells along a BFS distance field instead of turning at random,
+  so they cross rooms in straight runs and never circle a room.
+
+Lessons from this session:
+
+- The headless `--screenshot` mode paid for itself immediately: every rendering step was checked
+  on real output, and the first bot wander logic (bots oscillating in dead ends) was caught by
+  sampling the mini map over time. Keep extending it (`--scene`, `--forward`, `--fire`).
+- Every hand-drawn maze had sealed pockets on the first try. Always run the flood fill check.
+- Bot movement that probes from the bot's own position fails at corridor mouths; decide at cell
+  centres on the grid instead.
+
 Open / next ideas (decide together, none started):
 
 - **LAN multiplayer** for up to four humans over UDP. Simulation is deterministic and
   input-driven, so lockstep (exchange `Controls` per tick) or host-authoritative are both open.
-- **Polish:** respawn sound, wall edge lines or light distance fog for readability
-  in long corridors, integer pixel scaling, a nicer HUD frame, crosshair question.
+  This is the natural next milestone.
+- **Polish:** judge the sounds by ear and tune the three synth functions, respawn sound, wall edge
+  lines or light distance fog for readability in long corridors, integer pixel scaling, a nicer
+  HUD frame, crosshair question, bots pausing briefly at their destinations.
 - **Gameplay:** player-player collision (currently they pass through each other), bots avoid
   standing in each other's line, time-limited rounds, maze selection in-game.
-- **Tools:** maze editor, more mazes.
+- **Tools:** random maze generator with rooms (seeded, so a map can be replayed by number),
+  maze editor, more mazes.
