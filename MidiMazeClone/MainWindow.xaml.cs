@@ -141,6 +141,12 @@ namespace MidiMazeClone
                 _game.ShowMap = !_game.ShowMap;
                 return;
             }
+
+            if (key == Key.R)
+            {
+                _game.Restart();
+                return;
+            }
         }
 
         private void SetControl(Key key, bool pressed)

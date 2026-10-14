@@ -13,6 +13,7 @@ namespace MidiMazeClone
         public string? ScreenshotPath;
         public bool ShowMap;
         public bool DriveForward;        // screenshot mode: hold "forward" during the warmup
+        public bool HoldFire;            // screenshot mode: hold "fire" during the warmup
         public string? Scene;            // fixed test scene instead of a normal game, e.g. "lineup"
         public int Seed;                 // 0 = pick a random seed
         public double WarmupSeconds;     // simulation time to run before taking a screenshot
@@ -69,6 +70,13 @@ namespace MidiMazeClone
                 if (arg == "--forward")
                 {
                     options.DriveForward = true;
+                    i += 1;
+                    continue;
+                }
+
+                if (arg == "--fire")
+                {
+                    options.HoldFire = true;
                     i += 1;
                     continue;
                 }

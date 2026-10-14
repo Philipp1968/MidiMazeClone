@@ -33,6 +33,7 @@ namespace MidiMazeClone
         {
             // Let the simulation run for a while so the screenshot is not just the first frame.
             game.LocalControls.Forward = options.DriveForward;
+            game.LocalControls.Fire = options.HoldFire;
             double simulated = 0.0;
             while (simulated < options.WarmupSeconds)
             {

@@ -1,7 +1,7 @@
 namespace MidiMazeClone
 {
     /// <summary>
-    /// The simulation: maze, players and (later) shots. Advanced in fixed time steps.
+    /// The simulation: maze, players and shots. Advanced in fixed time steps.
     /// Everything random goes through the seeded Random, so a replay or a lockstep
     /// network game can reproduce the same world.
     /// </summary>
@@ -9,13 +9,19 @@ namespace MidiMazeClone
     {
         public const double TurnSpeed = 2.6;          // radians per second
         public const double MoveSpeed = 2.4;          // cells per second
+        public const double FireInterval = 0.5;       // seconds between two shots of one player
         public const double ShieldSeconds = 2.0;      // invulnerability after a respawn
+        public const double HitFlashSeconds = 0.5;    // red flash in the victim's view
         public const double MinSpawnDistance = 4.0;   // cells away from other players, if possible
+        public const double ShotSubStep = 0.1;        // max cells a shot moves per collision check
 
         public readonly Maze Maze;
         public readonly Random Random;
         public readonly List<Player> Players = new List<Player>();
+        public readonly List<Shot> Shots = new List<Shot>();
 
+        public int WinScore = 10;
+        public Player? Winner;
         public double Time;
 
         public World(Maze maze, int seed)
@@ -32,14 +38,43 @@ namespace MidiMazeClone
             return player;
         }
 
+        /// <summary>New round: scores to zero, shots gone, everybody respawns.</summary>
+        public void Restart()
+        {
+            Shots.Clear();
+            Winner = null;
+
+            for (int i = 0; i < Players.Count; i++)
+            {
+                Player player = Players[i];
+                player.Score = 0;
+                player.Hits = 0;
+                player.FireCooldown = 0.0;
+                player.HitFlash = 0.0;
+                player.Controls.Clear();
+            }
+
+            for (int i = 0; i < Players.Count; i++)
+            {
+                Respawn(Players[i]);
+            }
+        }
+
         public void Update(double dt)
         {
             Time += dt;
+
+            if (Winner != null)
+            {
+                return;   // round is over, wait for a restart
+            }
 
             for (int i = 0; i < Players.Count; i++)
             {
                 UpdatePlayer(Players[i], dt);
             }
+
+            UpdateShots(dt);
         }
 
         private void UpdatePlayer(Player player, double dt)
@@ -86,6 +121,11 @@ namespace MidiMazeClone
             {
                 player.FireCooldown -= dt;
             }
+
+            if (controls.Fire && player.FireCooldown <= 0.0)
+            {
+                Fire(player);
+            }
         }
 
         /// <summary>
@@ -130,6 +170,116 @@ namespace MidiMazeClone
             }
 
             return true;
+        }
+
+        /// <summary>Spawn a shot just outside the player's own collision radius.</summary>
+        private void Fire(Player player)
+        {
+            double dirX = player.DirectionX();
+            double dirY = player.DirectionY();
+            double startDistance = Player.Radius + Shot.Radius + 0.02;
+
+            Shot shot = new Shot(player, player.X + dirX * startDistance, player.Y + dirY * startDistance, dirX, dirY);
+            Shots.Add(shot);
+
+            player.FireCooldown = FireInterval;
+        }
+
+        private void UpdateShots(double dt)
+        {
+            for (int i = 0; i < Shots.Count; i++)
+            {
+                MoveShot(Shots[i], dt);
+            }
+
+            // Remove dead shots, walking backwards so removal does not skip entries.
+            for (int i = Shots.Count - 1; i >= 0; i--)
+            {
+                if (!Shots[i].Alive)
+                {
+                    Shots.RemoveAt(i);
+                }
+            }
+        }
+
+        /// <summary>Move a shot in small sub-steps so it cannot tunnel through a wall or a player.</summary>
+        private void MoveShot(Shot shot, double dt)
+        {
+            if (!shot.Alive)
+            {
+                return;
+            }
+
+            double distance = Shot.Speed * dt;
+            int subSteps = (int)Math.Ceiling(distance / ShotSubStep);
+            if (subSteps < 1)
+            {
+                subSteps = 1;
+            }
+            double stepLength = distance / subSteps;
+
+            for (int step = 0; step < subSteps; step++)
+            {
+                shot.X += shot.DirectionX * stepLength;
+                shot.Y += shot.DirectionY * stepLength;
+
+                int cellX = MathUtil.FloorToInt(shot.X);
+                int cellY = MathUtil.FloorToInt(shot.Y);
+                if (Maze.IsWall(cellX, cellY))
+                {
+                    shot.Alive = false;
+                    return;
+                }
+
+                Player? victim = FindShotVictim(shot);
+                if (victim != null)
+                {
+                    shot.Alive = false;
+                    RegisterHit(shot.Owner, victim);
+                    return;
+                }
+            }
+        }
+
+        private Player? FindShotVictim(Shot shot)
+        {
+            double hitDistance = Player.Radius + Shot.Radius;
+            double hitDistanceSquared = hitDistance * hitDistance;
+
+            for (int i = 0; i < Players.Count; i++)
+            {
+                Player player = Players[i];
+                if (player == shot.Owner)
+                {
+                    continue;
+                }
+                if (player.Shield > 0.0)
+                {
+                    continue;
+                }
+
+                double dx = player.X - shot.X;
+                double dy = player.Y - shot.Y;
+                if (dx * dx + dy * dy < hitDistanceSquared)
+                {
+                    return player;
+                }
+            }
+
+            return null;
+        }
+
+        private void RegisterHit(Player shooter, Player victim)
+        {
+            shooter.Score++;
+            victim.Hits++;
+            victim.HitFlash = HitFlashSeconds;
+            Respawn(victim);
+
+            if (shooter.Score >= WinScore)
+            {
+                Winner = shooter;
+            }
         }
 
         /// <summary>Put the player on a random free cell, away from the others when possible.</summary>
@@ -191,6 +341,39 @@ namespace MidiMazeClone
                 double dx = other.X - x;
                 double dy = other.Y - y;
                 if (dx * dx + dy * dy < minDistanceSquared)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// True if nothing but floor lies on the straight line between two points.
+        /// Used by bots to decide whether they can see (and shoot) somebody.
+        /// </summary>
+        public bool HasLineOfSight(double fromX, double fromY, double toX, double toY)
+        {
+            double dx = toX - fromX;
+            double dy = toY - fromY;
+            double length = Math.Sqrt(dx * dx + dy * dy);
+            if (length < 0.001)
+            {
+                return true;
+            }
+
+            int steps = (int)Math.Ceiling(length / 0.1);
+            double stepX = dx / steps;
+            double stepY = dy / steps;
+
+            double x = fromX;
+            double y = fromY;
+            for (int i = 0; i < steps; i++)
+            {
+                x += stepX;
+                y += stepY;
+                if (Maze.IsWall(MathUtil.FloorToInt(x), MathUtil.FloorToInt(y)))
                 {
                     return false;
                 }

@@ -122,25 +122,96 @@ namespace MidiMazeClone
             _world.Update(dt);
         }
 
+        public void Restart()
+        {
+            _world.Restart();
+        }
+
         public void Render(int fps)
         {
             _renderer.DrawView(_world, _localPlayer, Screen);
 
+            if (_localPlayer.HitFlash > 0.0)
+            {
+                DrawHitFlash();
+            }
+
             if (ShowMap)
             {
                 DrawMiniMap();
+
+                string position = "X " + _localPlayer.X.ToString("0.00", CultureInfo.InvariantCulture)
+                    + "  Y " + _localPlayer.Y.ToString("0.00", CultureInfo.InvariantCulture)
+                    + "  ANGLE " + (_localPlayer.Angle * 180.0 / Math.PI).ToString("0", CultureInfo.InvariantCulture);
+                Screen.DrawTextShadowed(2, ViewHeight - 18, position, Palette.Grey, 1);
             }
 
-            string position = "X " + _localPlayer.X.ToString("0.00", CultureInfo.InvariantCulture)
-                + "  Y " + _localPlayer.Y.ToString("0.00", CultureInfo.InvariantCulture)
-                + "  ANGLE " + (_localPlayer.Angle * 180.0 / Math.PI).ToString("0", CultureInfo.InvariantCulture);
-            Screen.DrawTextShadowed(2, 2, position, Palette.White, 1);
+            DrawScoreboard();
 
-            string hint = "ARROWS/WASD MOVE   M MAP   ESC QUIT";
+            if (_localPlayer.Shield > 0.0)
+            {
+                int blinkPhase = (int)(_world.Time * 4.0) % 2;
+                if (blinkPhase == 0)
+                {
+                    string shieldText = "SHIELD";
+                    int shieldX = (ViewWidth - FrameBuffer.TextWidth(shieldText, 1)) / 2;
+                    Screen.DrawTextShadowed(shieldX, ViewHeight - 30, shieldText, Palette.White, 1);
+                }
+            }
+
+            if (_world.Winner != null)
+            {
+                DrawWinnerBanner(_world.Winner);
+            }
+
+            string hint = "ARROWS/WASD MOVE  SPACE FIRE  M MAP  R RESTART  ESC QUIT";
             Screen.DrawTextShadowed(2, ViewHeight - 9, hint, Palette.Grey, 1);
 
             string fpsText = fps + " FPS";
             Screen.DrawTextShadowed(ViewWidth - FrameBuffer.TextWidth(fpsText, 1) - 2, 2, fpsText, Palette.White, 1);
+        }
+
+        /// <summary>One line per player in the top left: name and hits dealt.</summary>
+        private void DrawScoreboard()
+        {
+            int y = 2;
+            for (int i = 0; i < _world.Players.Count; i++)
+            {
+                Player player = _world.Players[i];
+                string line = player.Name + " " + player.Score;
+                Screen.DrawTextShadowed(2, y, line, player.Color, 1);
+                y += 9;
+            }
+        }
+
+        /// <summary>Tint the whole view red, fading out as the flash timer runs down.</summary>
+        private void DrawHitFlash()
+        {
+            double amount = _localPlayer.HitFlash / World.HitFlashSeconds * 0.6;
+            int[] pixels = Screen.Pixels;
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                pixels[i] = Palette.Blend(pixels[i], Palette.Red, amount);
+            }
+        }
+
+        private void DrawWinnerBanner(Player winner)
+        {
+            string line1 = winner.Name + " WINS!";
+            string line2 = "PRESS R FOR A NEW ROUND";
+
+            int boxWidth = FrameBuffer.TextWidth(line2, 1) + 16;
+            int boxHeight = 40;
+            int boxX = (ViewWidth - boxWidth) / 2;
+            int boxY = (ViewHeight - boxHeight) / 2;
+            Screen.FillRect(boxX, boxY, boxWidth, boxHeight, Palette.Black);
+            Screen.FillRect(boxX + 1, boxY + 1, boxWidth - 2, boxHeight - 2, Palette.DarkGrey);
+
+            int line1X = (ViewWidth - FrameBuffer.TextWidth(line1, 2)) / 2;
+            Screen.DrawTextShadowed(line1X, boxY + 6, line1, winner.Color, 2);
+
+            int line2X = (ViewWidth - FrameBuffer.TextWidth(line2, 1)) / 2;
+            Screen.DrawTextShadowed(line2X, boxY + 26, line2, Palette.White, 1);
         }
 
         /// <summary>Small map in the top right corner, below the FPS counter.</summary>

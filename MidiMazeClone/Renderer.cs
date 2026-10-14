@@ -22,6 +22,7 @@ namespace MidiMazeClone
             public double ScreenX;      // centre column in pixels (may be off screen)
             public double RadiusPixels;
             public Player? Player;
+            public Shot? Shot;
         }
 
         private readonly int _width;
@@ -113,6 +114,35 @@ namespace MidiMazeClone
                 items.Add(item);
             }
 
+            for (int i = 0; i < world.Shots.Count; i++)
+            {
+                Shot shot = world.Shots[i];
+
+                double relX = shot.X - viewer.X;
+                double relY = shot.Y - viewer.Y;
+                double depth = relX * dirX + relY * dirY;
+                if (depth <= 0.05)
+                {
+                    continue;
+                }
+
+                double lateral = relX * rightX + relY * rightY;
+                double screenX = _width / 2.0 + (lateral / depth) * _focalLength;
+                double radiusPixels = Shot.DrawRadius * _focalLength / depth;
+
+                if (screenX + radiusPixels < 0.0 || screenX - radiusPixels >= _width)
+                {
+                    continue;
+                }
+
+                SpriteItem item = new SpriteItem();
+                item.Depth = depth;
+                item.ScreenX = screenX;
+                item.RadiusPixels = radiusPixels;
+                item.Shot = shot;
+                items.Add(item);
+            }
+
             SortFarToNear(items);
 
             for (int i = 0; i < items.Count; i++)
@@ -121,6 +151,12 @@ namespace MidiMazeClone
                 if (item.Player != null)
                 {
                     DrawSmiley(fb, item, item.Player, viewer, rightX, rightY, horizon);
+                }
+                else if (item.Shot != null)
+                {
+                    // A plain ball in the shooter's colour, so you know who is shooting at you.
+                    DrawBall(fb, item.ScreenX, horizon, item.RadiusPixels, item.Depth,
+                        item.Shot.Owner.Color, true, false, 0.0, 1.0);
                 }
             }
         }
