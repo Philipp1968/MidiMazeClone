@@ -4,8 +4,9 @@ namespace MidiMazeClone
     /// A simple computer opponent. It only fills in the player's Controls, exactly like
     /// a keyboard would, so bots and humans go through the same movement and firing code.
     ///
-    /// Behaviour: wander the maze from cell centre to cell centre, picking an open
-    /// neighbour cell at every centre (straight on preferred, turning back last).
+    /// Behaviour: wander the maze from cell centre to cell centre towards a random target
+    /// cell, following a breadth-first distance field and preferring the neighbour straight
+    /// ahead, so routes across rooms are straight runs with one turn instead of zigzags.
     /// When another player is in view and in line of sight, turn towards them, close in
     /// a bit, and fire once the aim is good enough.
     /// </summary>
@@ -17,7 +18,7 @@ namespace MidiMazeClone
         public const double TurnTolerance = 0.03;       // radians: stop turning when this close
         public const double KeepDistance = 3.0;         // cells: advance on the target while further away
         public const double ArriveTolerance = 0.04;     // cells: counts as "at the cell centre"
-        public const double StraightOnChance = 0.7;     // keep direction at a junction with this probability
+        public const int MinTargetDistance = 6;         // cells (Manhattan): wander targets are at least this far
         public const double StuckSeconds = 0.5;         // no progress for this long: re-align
         public const double AimJitter = 0.12;           // radians: largest random aim error (about 7 degrees)
         public const double AimJitterSeconds = 0.6;     // how long one aim error is kept before re-rolling
@@ -38,6 +39,9 @@ namespace MidiMazeClone
         private double _stuckTimer;
         private double _aimError;
         private double _aimErrorTimer;
+
+        /// <summary>Cells to the current wander target for every cell; -1 = wall or unreachable. Null = no target yet.</summary>
+        private int[,]? _distanceToTarget;
 
         public void Think(World world, Player me, double dt)
         {
@@ -227,20 +231,33 @@ namespace MidiMazeClone
         }
 
         /// <summary>
-        /// At a cell centre: look at the four neighbour cells, keep going straight most of the
-        /// time, otherwise pick a random open side. Turning back only when nothing else is open.
+        /// At a cell centre: step to a neighbour that is one cell closer to the wander target,
+        /// preferring the one straight ahead. Arrived (or no target yet): pick a new target.
         /// </summary>
         private void ChooseNextCell(World world, Player me)
         {
             int cellX = MathUtil.FloorToInt(me.X);
             int cellY = MathUtil.FloorToInt(me.Y);
 
+            int[,]? distances = _distanceToTarget;
+            if (distances == null || distances[cellX, cellY] <= 0)
+            {
+                distances = PickNewTarget(world, cellX, cellY);
+                _distanceToTarget = distances;
+            }
+
+            int myDistance = distances[cellX, cellY];
+            if (myDistance <= 0)
+            {
+                _state = WanderState.Aligning;   // target is this cell or unreachable; try again next time
+                _distanceToTarget = null;
+                return;
+            }
+
             double currentAngle = MathUtil.NormalizeAngle(Math.Round(me.Angle / MathUtil.HalfPi) * MathUtil.HalfPi);
-            double reverseAngle = MathUtil.NormalizeAngle(currentAngle + Math.PI);
 
-            List<double> openAngles = new List<double>();
-            bool straightIsOpen = false;
-
+            bool found = false;
+            double chosenAngle = 0.0;
             for (int k = 0; k < 4; k++)
             {
                 double angle = MathUtil.NormalizeAngle(k * MathUtil.HalfPi);
@@ -250,46 +267,107 @@ namespace MidiMazeClone
                 {
                     continue;
                 }
-
-                openAngles.Add(angle);
-                if (SameAngle(angle, currentAngle))
+                if (distances[neighbourX, neighbourY] != myDistance - 1)
                 {
-                    straightIsOpen = true;
+                    continue;   // not on a shortest route
+                }
+
+                bool isStraightAhead = SameAngle(angle, currentAngle);
+                if (!found || isStraightAhead)
+                {
+                    chosenAngle = angle;
+                    found = true;
+                }
+                if (isStraightAhead)
+                {
+                    break;   // straight ahead wins over any other shortest route
                 }
             }
 
-            if (openAngles.Count == 0)
+            if (!found)
             {
-                _state = WanderState.Aligning;   // boxed in; should not happen in a connected maze
+                _distanceToTarget = null;        // field does not fit the maze any more; new target next time
+                _state = WanderState.Aligning;
                 return;
             }
 
-            double chosen;
-            if (straightIsOpen && world.Random.NextDouble() < StraightOnChance)
+            _targetAngle = chosenAngle;
+            _targetX = cellX + (int)Math.Round(Math.Cos(chosenAngle)) + 0.5;
+            _targetY = cellY + (int)Math.Round(Math.Sin(chosenAngle)) + 0.5;
+            _state = WanderState.Turning;
+        }
+
+        /// <summary>Random free cell, preferably some way off, and the distance field towards it.</summary>
+        private static int[,] PickNewTarget(World world, int fromX, int fromY)
+        {
+            Maze maze = world.Maze;
+            int targetX = fromX;
+            int targetY = fromY;
+
+            for (int attempt = 0; attempt < 100; attempt++)
             {
-                chosen = currentAngle;
-            }
-            else
-            {
-                List<double> candidates = new List<double>();
-                for (int i = 0; i < openAngles.Count; i++)
+                int x = world.Random.Next(maze.Width);
+                int y = world.Random.Next(maze.Height);
+                if (maze.IsWall(x, y))
                 {
-                    if (!SameAngle(openAngles[i], reverseAngle))
-                    {
-                        candidates.Add(openAngles[i]);
-                    }
+                    continue;
                 }
-                if (candidates.Count == 0)
+
+                int manhattan = Math.Abs(x - fromX) + Math.Abs(y - fromY);
+                if (attempt < 80 && manhattan < MinTargetDistance)
                 {
-                    candidates = openAngles;
+                    continue;   // too close; insist on distance for most attempts
                 }
-                chosen = candidates[world.Random.Next(candidates.Count)];
+
+                targetX = x;
+                targetY = y;
+                break;
             }
 
-            _targetAngle = chosen;
-            _targetX = cellX + (int)Math.Round(Math.Cos(chosen)) + 0.5;
-            _targetY = cellY + (int)Math.Round(Math.Sin(chosen)) + 0.5;
-            _state = WanderState.Turning;
+            return ComputeDistances(maze, targetX, targetY);
+        }
+
+        /// <summary>Breadth-first search from the target: cells to the target for every floor cell, -1 elsewhere.</summary>
+        private static int[,] ComputeDistances(Maze maze, int targetX, int targetY)
+        {
+            int[,] distances = new int[maze.Width, maze.Height];
+            for (int y = 0; y < maze.Height; y++)
+            {
+                for (int x = 0; x < maze.Width; x++)
+                {
+                    distances[x, y] = -1;
+                }
+            }
+
+            Queue<(int, int)> open = new Queue<(int, int)>();
+            distances[targetX, targetY] = 0;
+            open.Enqueue((targetX, targetY));
+
+            while (open.Count > 0)
+            {
+                (int x, int y) = open.Dequeue();
+                int next = distances[x, y] + 1;
+                VisitForDistance(maze, distances, open, x + 1, y, next);
+                VisitForDistance(maze, distances, open, x - 1, y, next);
+                VisitForDistance(maze, distances, open, x, y + 1, next);
+                VisitForDistance(maze, distances, open, x, y - 1, next);
+            }
+
+            return distances;
+        }
+
+        private static void VisitForDistance(Maze maze, int[,] distances, Queue<(int, int)> open, int x, int y, int distance)
+        {
+            if (maze.IsWall(x, y))
+            {
+                return;   // also covers "outside the map"
+            }
+            if (distances[x, y] != -1)
+            {
+                return;   // already reached by a shorter or equal route
+            }
+            distances[x, y] = distance;
+            open.Enqueue((x, y));
         }
 
         private static bool SameAngle(double a, double b)

@@ -42,7 +42,7 @@ Command line: `--maze <file>` (default `Mazes\classic.txt` next to the exe, then
 | `Player.cs`, `Shot.cs` | Plain data. |
 | `Controls.cs` | What a player wants to do this tick. The only input into the simulation. |
 | `World.cs` | The simulation: movement with wall sliding, firing, shot flight, hits, respawn, round winner. |
-| `BotBrain.cs` | Computer opponent; fills `Controls` like a keyboard would. |
+| `BotBrain.cs` | Computer opponent; fills `Controls` like a keyboard would. Wanders to random target cells along a BFS distance field (straight ahead preferred), engages visible players with aim jitter. |
 | `IWorldEvents.cs` | Shots and hits reported by `World` to the presentation layer (`Game`). |
 | `Sounds.cs` | Sound effects synthesised in code (square waves, noise); hands them to the mixer. |
 | `AudioMixer.cs` | Software mixer on the Win32 waveOut API via P/Invoke: background thread, 4 small buffers, up to 8 voices with volume. |
