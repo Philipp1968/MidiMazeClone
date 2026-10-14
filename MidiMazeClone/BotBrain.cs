@@ -19,6 +19,8 @@ namespace MidiMazeClone
         public const double ArriveTolerance = 0.04;     // cells: counts as "at the cell centre"
         public const double StraightOnChance = 0.7;     // keep direction at a junction with this probability
         public const double StuckSeconds = 0.5;         // no progress for this long: re-align
+        public const double AimJitter = 0.12;           // radians: largest random aim error (about 7 degrees)
+        public const double AimJitterSeconds = 0.6;     // how long one aim error is kept before re-rolling
 
         private enum WanderState
         {
@@ -34,6 +36,8 @@ namespace MidiMazeClone
         private double _targetY;
         private double _lastRemaining;
         private double _stuckTimer;
+        private double _aimError;
+        private double _aimErrorTimer;
 
         public void Think(World world, Player me, double dt)
         {
@@ -43,7 +47,7 @@ namespace MidiMazeClone
             Player? target = FindVisibleEnemy(world, me);
             if (target != null)
             {
-                Engage(me, target);
+                Engage(world, me, target, dt);
                 _state = WanderState.Aligning;   // after the fight, get back on the grid
                 return;
             }
@@ -96,13 +100,23 @@ namespace MidiMazeClone
             return best;
         }
 
-        private static void Engage(Player me, Player target)
+        private void Engage(World world, Player me, Player target, double dt)
         {
             Controls controls = me.Controls;
 
+            // Bots are not perfect shots: aim a little off, and change that error now and then.
+            // A fixed error over a few tenths of a second means the bot really turns to the wrong
+            // spot; a new error every tick would just average out to perfect aim.
+            _aimErrorTimer -= dt;
+            if (_aimErrorTimer <= 0.0)
+            {
+                _aimError = (world.Random.NextDouble() * 2.0 - 1.0) * AimJitter;
+                _aimErrorTimer = AimJitterSeconds;
+            }
+
             double dx = target.X - me.X;
             double dy = target.Y - me.Y;
-            double angleToTarget = Math.Atan2(dy, dx);
+            double angleToTarget = Math.Atan2(dy, dx) + _aimError;
             double angleDifference = MathUtil.NormalizeAngle(angleToTarget - me.Angle);
 
             TurnTowards(controls, angleDifference);
