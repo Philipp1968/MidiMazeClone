@@ -44,7 +44,8 @@ Command line: `--maze <file>` (default `Mazes\classic.txt` next to the exe, then
 | `World.cs` | The simulation: movement with wall sliding, firing, shot flight, hits, respawn, round winner. |
 | `BotBrain.cs` | Computer opponent; fills `Controls` like a keyboard would. |
 | `IWorldEvents.cs` | Shots and hits reported by `World` to the presentation layer (`Game`). |
-| `Sounds.cs` | Sound effects synthesised in code (square waves, noise), played via `System.Media.SoundPlayer`. |
+| `Sounds.cs` | Sound effects synthesised in code (square waves, noise); hands them to the mixer. |
+| `AudioMixer.cs` | Software mixer on the Win32 waveOut API via P/Invoke: background thread, 4 small buffers, up to 8 voices with volume. |
 | `Renderer.cs` | Raycaster for walls, z-buffer, sprite pass (smileys, shots), top-down map. |
 | `Mazes/*.txt` | Maze files, copied next to the exe. |
 
@@ -71,11 +72,13 @@ Command line: `--maze <file>` (default `Mazes\classic.txt` next to the exe, then
   time (slides along walls). Shots move in 0.1-cell sub-steps so they cannot tunnel.
 - **Internal resolution 320x200** for the ST look. Higher resolutions are only a constant change
   (`Game.ViewWidth/ViewHeight`); the renderer scales with the focal length.
-- **Sound** is generated at startup (no files) and played with `SoundPlayer`, which can only play
-  one sound at a time. A priority plus "busy until" time keeps a hit from being cut by a distant
-  shot. `World` raises `IWorldEvents`; `Game` decides what the local player hears (own shots
-  always, others within `HearingRange`). If overlapping sounds or volume by distance are ever
-  wanted, the upgrade path is a small waveOut mixer via P/Invoke, still without libraries.
+- **Sound** is generated at startup (no files) and mixed in software onto the Win32 waveOut API
+  (`winmm.dll`, P/Invoke, still no libraries). Mono 16-bit at 22050 Hz, 4 buffers of 256 samples,
+  about 46 ms latency. Several sounds overlap, each with its own volume. The headers and sample
+  buffers the driver owns live in unmanaged memory (`Marshal.AllocHGlobal`). If the device cannot
+  be opened the game simply runs silent. `World` raises `IWorldEvents`; `Game` decides what the
+  local player hears: own shots and hits at full volume, others fading linearly to silence at
+  `HearingRange`.
 
 ## Screenshot mode (visual checks without a window)
 
@@ -94,6 +97,10 @@ MidiMazeClone.exe --screenshot bots.png --seed 5 --map --warmup 90
 ```
 
 Generated `*.png` files are git-ignored.
+
+`--audiotest <file.txt>` plays the three sounds (two of them overlapping) and writes the mixer
+status to the file: open result, buffers written, active voices, write errors. With a healthy
+mixer the buffer count grows by about 86 per second.
 
 ## Maze file format
 

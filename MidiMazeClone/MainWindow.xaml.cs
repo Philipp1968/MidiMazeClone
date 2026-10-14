@@ -53,6 +53,7 @@ namespace MidiMazeClone
         private void OnClosed(object? sender, EventArgs e)
         {
             CompositionTarget.Rendering -= OnRendering;
+            _game.Shutdown();
         }
 
         private void OnDeactivated(object? sender, EventArgs e)

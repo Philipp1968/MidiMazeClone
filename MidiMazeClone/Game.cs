@@ -60,6 +60,15 @@ namespace MidiMazeClone
             _world.Events = this;
         }
 
+        /// <summary>Release the audio device. Call once when the window closes.</summary>
+        public void Shutdown()
+        {
+            if (_sounds != null)
+            {
+                _sounds.Dispose();
+            }
+        }
+
         // ---- IWorldEvents: turn simulation events into sounds, relative to the local player ----
 
         public void OnShotFired(Player shooter)
@@ -71,14 +80,11 @@ namespace MidiMazeClone
 
             if (shooter == _localPlayer)
             {
-                _sounds.PlayShot(_world.Time, Sounds.PriorityOwnShot);
+                _sounds.PlayShot(1.0);
                 return;
             }
 
-            if (IsWithinHearingRange(shooter))
-            {
-                _sounds.PlayShot(_world.Time, Sounds.PriorityRemoteShot);
-            }
+            _sounds.PlayShot(VolumeByDistance(shooter));
         }
 
         public void OnPlayerHit(Player shooter, Player victim)
@@ -90,21 +96,32 @@ namespace MidiMazeClone
 
             if (victim == _localPlayer)
             {
-                _sounds.PlayHitTaken(_world.Time);
+                _sounds.PlayHitTaken(1.0);
                 return;
             }
 
-            if (shooter == _localPlayer || IsWithinHearingRange(victim))
+            if (shooter == _localPlayer)
             {
-                _sounds.PlayHitDealt(_world.Time);
+                _sounds.PlayHitDealt(1.0);
+                return;
             }
+
+            _sounds.PlayHitDealt(VolumeByDistance(victim));
         }
 
-        private bool IsWithinHearingRange(Player other)
+        /// <summary>Full volume next to us, fading linearly to silence at HearingRange.</summary>
+        private double VolumeByDistance(Player other)
         {
             double dx = other.X - _localPlayer.X;
             double dy = other.Y - _localPlayer.Y;
-            return dx * dx + dy * dy <= HearingRange * HearingRange;
+            double distance = Math.Sqrt(dx * dx + dy * dy);
+
+            double volume = 1.0 - distance / HearingRange;
+            if (volume < 0.0)
+            {
+                volume = 0.0;
+            }
+            return volume;
         }
 
         /// <summary>
@@ -206,6 +223,11 @@ namespace MidiMazeClone
                     + "  Y " + _localPlayer.Y.ToString("0.00", CultureInfo.InvariantCulture)
                     + "  ANGLE " + (_localPlayer.Angle * 180.0 / Math.PI).ToString("0", CultureInfo.InvariantCulture);
                 Screen.DrawTextShadowed(2, ViewHeight - 18, position, Palette.Grey, 1);
+
+                if (_sounds != null)
+                {
+                    Screen.DrawTextShadowed(2, ViewHeight - 27, _sounds.DebugStatus(), Palette.Grey, 1);
+                }
             }
 
             DrawScoreboard();

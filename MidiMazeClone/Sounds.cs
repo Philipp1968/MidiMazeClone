@@ -1,77 +1,81 @@
-using System.IO;
-using System.Media;
-
 namespace MidiMazeClone
 {
     /// <summary>
     /// Retro sound effects, synthesised in code at startup (square waves and noise, like a
-    /// sound chip) and played with System.Media.SoundPlayer. No files, no libraries.
-    ///
-    /// Limitation of SoundPlayer: only one sound plays at a time and starting a new one
-    /// cuts the current one. A priority with a "busy until" time keeps important sounds
-    /// (being hit) from being cut by unimportant ones (a bot shooting somewhere).
+    /// sound chip) and played through the AudioMixer. No files, no libraries.
+    /// If the audio device cannot be opened, everything here silently does nothing.
     /// </summary>
-    public sealed class Sounds
+    public sealed class Sounds : IDisposable
     {
         private const int SampleRate = 22050;
 
-        public const int PriorityRemoteShot = 0;
-        public const int PriorityOwnShot = 1;
-        public const int PriorityHitDealt = 2;
-        public const int PriorityHitTaken = 3;
+        private readonly AudioMixer? _mixer;
+        private readonly short[] _shot;
+        private readonly short[] _hitDealt;
+        private readonly short[] _hitTaken;
 
-        private readonly SoundPlayer _shot;
-        private readonly SoundPlayer _hitDealt;
-        private readonly SoundPlayer _hitTaken;
-
-        private readonly double _shotSeconds;
-        private readonly double _hitDealtSeconds;
-        private readonly double _hitTakenSeconds;
-
-        private double _busyUntil;
-        private int _busyPriority;
+        /// <summary>waveOutOpen result; 0 means the mixer is running.</summary>
+        public readonly int OpenError;
 
         public Sounds()
         {
-            short[] shot = SynthShot();
-            short[] hitDealt = SynthHitDealt();
-            short[] hitTaken = SynthHitTaken();
+            _shot = SynthShot();
+            _hitDealt = SynthHitDealt();
+            _hitTaken = SynthHitTaken();
 
-            _shot = CreatePlayer(shot);
-            _hitDealt = CreatePlayer(hitDealt);
-            _hitTaken = CreatePlayer(hitTaken);
-
-            _shotSeconds = shot.Length / (double)SampleRate;
-            _hitDealtSeconds = hitDealt.Length / (double)SampleRate;
-            _hitTakenSeconds = hitTaken.Length / (double)SampleRate;
+            int error;
+            _mixer = AudioMixer.TryCreate(SampleRate, out error);
+            OpenError = error;
         }
 
-        /// <param name="now">Simulation time in seconds, used for the priority bookkeeping.</param>
-        public void PlayShot(double now, int priority)
+        public bool IsAvailable()
         {
-            Play(_shot, _shotSeconds, now, priority);
+            return _mixer != null;
         }
 
-        public void PlayHitDealt(double now)
+        /// <param name="volume">0.0 (silent) to 1.0 (full), e.g. by distance.</param>
+        public void PlayShot(double volume)
         {
-            Play(_hitDealt, _hitDealtSeconds, now, PriorityHitDealt);
-        }
-
-        public void PlayHitTaken(double now)
-        {
-            Play(_hitTaken, _hitTakenSeconds, now, PriorityHitTaken);
-        }
-
-        private void Play(SoundPlayer player, double seconds, double now, int priority)
-        {
-            if (now < _busyUntil && priority < _busyPriority)
+            if (_mixer != null)
             {
-                return;   // something more important is still playing
+                _mixer.Play(_shot, volume);
             }
+        }
 
-            player.Play();
-            _busyUntil = now + seconds;
-            _busyPriority = priority;
+        public void PlayHitDealt(double volume)
+        {
+            if (_mixer != null)
+            {
+                _mixer.Play(_hitDealt, volume);
+            }
+        }
+
+        public void PlayHitTaken(double volume)
+        {
+            if (_mixer != null)
+            {
+                _mixer.Play(_hitTaken, volume);
+            }
+        }
+
+        /// <summary>One line for the debug HUD and the --audiotest mode.</summary>
+        public string DebugStatus()
+        {
+            if (_mixer == null)
+            {
+                return "AUDIO OFF, WAVEOUT ERROR " + OpenError;
+            }
+            return "AUDIO OK, BUFFERS " + _mixer.BuffersWritten
+                + ", VOICES " + _mixer.ActiveVoices()
+                + ", WRITE ERROR " + _mixer.LastWriteError;
+        }
+
+        public void Dispose()
+        {
+            if (_mixer != null)
+            {
+                _mixer.Dispose();
+            }
         }
 
         // ---- synthesis -------------------------------------------------------------------
@@ -161,60 +165,6 @@ namespace MidiMazeClone
                 value = -1.0;
             }
             return (short)(value * short.MaxValue);
-        }
-
-        // ---- WAV plumbing ----------------------------------------------------------------
-
-        private static SoundPlayer CreatePlayer(short[] samples)
-        {
-            byte[] wav = BuildWav(samples);
-            MemoryStream stream = new MemoryStream(wav);
-            SoundPlayer player = new SoundPlayer(stream);
-            player.Load();   // decode now, so the first Play() has no delay
-            return player;
-        }
-
-        /// <summary>16-bit mono PCM WAV: 44 byte header followed by the samples.</summary>
-        private static byte[] BuildWav(short[] samples)
-        {
-            int dataBytes = samples.Length * 2;
-            MemoryStream stream = new MemoryStream(44 + dataBytes);
-            BinaryWriter writer = new BinaryWriter(stream);
-
-            writer.Write((byte)'R');
-            writer.Write((byte)'I');
-            writer.Write((byte)'F');
-            writer.Write((byte)'F');
-            writer.Write(36 + dataBytes);
-            writer.Write((byte)'W');
-            writer.Write((byte)'A');
-            writer.Write((byte)'V');
-            writer.Write((byte)'E');
-
-            writer.Write((byte)'f');
-            writer.Write((byte)'m');
-            writer.Write((byte)'t');
-            writer.Write((byte)' ');
-            writer.Write(16);                    // fmt chunk size
-            writer.Write((short)1);              // PCM
-            writer.Write((short)1);              // mono
-            writer.Write(SampleRate);
-            writer.Write(SampleRate * 2);        // bytes per second
-            writer.Write((short)2);              // block align
-            writer.Write((short)16);             // bits per sample
-
-            writer.Write((byte)'d');
-            writer.Write((byte)'a');
-            writer.Write((byte)'t');
-            writer.Write((byte)'a');
-            writer.Write(dataBytes);
-            for (int i = 0; i < samples.Length; i++)
-            {
-                writer.Write(samples[i]);
-            }
-
-            writer.Flush();
-            return stream.ToArray();
         }
     }
 }

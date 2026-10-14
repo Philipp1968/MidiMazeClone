@@ -16,6 +16,14 @@ namespace MidiMazeClone
             base.OnStartup(e);
 
             StartupOptions options = StartupOptions.Parse(e.Args);
+
+            if (options.AudioTestPath != null)
+            {
+                RunAudioTest(options.AudioTestPath);
+                Shutdown();
+                return;
+            }
+
             Game game = new Game(options);
 
             if (options.ScreenshotPath != null)
@@ -27,6 +35,30 @@ namespace MidiMazeClone
 
             MainWindow window = new MainWindow(game);
             window.Show();
+        }
+
+        /// <summary>Play shot, hit dealt and hit taken in a row, then write the mixer status to a file.</summary>
+        private static void RunAudioTest(string path)
+        {
+            Sounds sounds = new Sounds();
+            string statusAfterOpen = sounds.DebugStatus();
+
+            sounds.PlayShot(1.0);
+            System.Threading.Thread.Sleep(300);
+            sounds.PlayHitDealt(1.0);
+            System.Threading.Thread.Sleep(300);
+            sounds.PlayHitTaken(0.8);
+            sounds.PlayShot(0.3);   // overlaps the crunch on purpose
+            string statusWhilePlaying = sounds.DebugStatus();
+            System.Threading.Thread.Sleep(600);
+            string statusAtEnd = sounds.DebugStatus();
+
+            sounds.Dispose();
+
+            string report = "after open:    " + statusAfterOpen + Environment.NewLine
+                + "while playing: " + statusWhilePlaying + Environment.NewLine
+                + "at end:        " + statusAtEnd + Environment.NewLine;
+            File.WriteAllText(path, report);
         }
 
         private static void RenderScreenshot(Game game, StartupOptions options)

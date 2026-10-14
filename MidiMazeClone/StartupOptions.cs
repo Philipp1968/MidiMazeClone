@@ -16,6 +16,7 @@ namespace MidiMazeClone
         public bool HoldFire;            // screenshot mode: hold "fire" during the warmup
         public string? Scene;            // fixed test scene instead of a normal game, e.g. "lineup"
         public bool Mute;                // no sound effects
+        public string? AudioTestPath;    // play the three sounds, write the mixer status to this file, exit
         public int Seed;                 // 0 = pick a random seed
         public double WarmupSeconds;     // simulation time to run before taking a screenshot
 
@@ -93,6 +94,13 @@ namespace MidiMazeClone
                 {
                     options.Mute = true;
                     i += 1;
+                    continue;
+                }
+
+                if (arg == "--audiotest" && next != null)
+                {
+                    options.AudioTestPath = next;
+                    i += 2;
                     continue;
                 }
 
