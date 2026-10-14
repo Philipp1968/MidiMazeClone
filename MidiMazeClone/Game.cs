@@ -7,11 +7,12 @@ namespace MidiMazeClone
     /// The game itself, independent of WPF: owns the frame buffer and the simulation,
     /// advances the simulation in fixed steps and renders frames into the buffer.
     /// </summary>
-    public sealed class Game
+    public sealed class Game : IWorldEvents
     {
         public const int ViewWidth = 320;
         public const int ViewHeight = 200;
         public const double StepSeconds = 1.0 / 60.0;
+        public const double HearingRange = 7.0;   // cells: other players' shots and hits are audible within this
 
         public readonly FrameBuffer Screen;
         public readonly Controls LocalControls;
@@ -20,6 +21,7 @@ namespace MidiMazeClone
         private readonly World _world;
         private readonly Player _localPlayer;
         private readonly Renderer _renderer;
+        private readonly Sounds? _sounds;
 
         public Game(StartupOptions options)
         {
@@ -49,6 +51,60 @@ namespace MidiMazeClone
 
             LocalControls = _localPlayer.Controls;
             _renderer = new Renderer(ViewWidth, ViewHeight);
+
+            // Sound only for a real window; the headless screenshot mode stays silent.
+            if (!options.Mute && options.ScreenshotPath == null)
+            {
+                _sounds = new Sounds();
+            }
+            _world.Events = this;
+        }
+
+        // ---- IWorldEvents: turn simulation events into sounds, relative to the local player ----
+
+        public void OnShotFired(Player shooter)
+        {
+            if (_sounds == null)
+            {
+                return;
+            }
+
+            if (shooter == _localPlayer)
+            {
+                _sounds.PlayShot(_world.Time, Sounds.PriorityOwnShot);
+                return;
+            }
+
+            if (IsWithinHearingRange(shooter))
+            {
+                _sounds.PlayShot(_world.Time, Sounds.PriorityRemoteShot);
+            }
+        }
+
+        public void OnPlayerHit(Player shooter, Player victim)
+        {
+            if (_sounds == null)
+            {
+                return;
+            }
+
+            if (victim == _localPlayer)
+            {
+                _sounds.PlayHitTaken(_world.Time);
+                return;
+            }
+
+            if (shooter == _localPlayer || IsWithinHearingRange(victim))
+            {
+                _sounds.PlayHitDealt(_world.Time);
+            }
+        }
+
+        private bool IsWithinHearingRange(Player other)
+        {
+            double dx = other.X - _localPlayer.X;
+            double dy = other.Y - _localPlayer.Y;
+            return dx * dx + dy * dy <= HearingRange * HearingRange;
         }
 
         /// <summary>

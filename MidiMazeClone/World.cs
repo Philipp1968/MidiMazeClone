@@ -25,6 +25,9 @@ namespace MidiMazeClone
         public Player? Winner;
         public double Time;
 
+        /// <summary>Optional listener for shots and hits; null when nobody cares (headless mode).</summary>
+        public IWorldEvents? Events;
+
         public World(Maze maze, int seed)
         {
             Maze = maze;
@@ -199,6 +202,11 @@ namespace MidiMazeClone
             {
                 player.FireCooldown = FireInterval * 2.0;   // bots shoot slower, humans need a chance
             }
+
+            if (Events != null)
+            {
+                Events.OnShotFired(player);
+            }
         }
 
         private void UpdateShots(double dt)
@@ -290,6 +298,12 @@ namespace MidiMazeClone
             shooter.Score++;
             victim.Hits++;
             victim.HitFlash = HitFlashSeconds;
+
+            if (Events != null)
+            {
+                Events.OnPlayerHit(shooter, victim);   // before the respawn: positions still tell where it happened
+            }
+
             Respawn(victim);
 
             if (shooter.Score >= WinScore)

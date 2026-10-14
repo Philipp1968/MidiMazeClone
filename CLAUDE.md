@@ -26,7 +26,7 @@ MidiMazeClone/bin/Debug/net10.0-windows/MidiMazeClone.exe
 | Esc | quit |
 
 Command line: `--maze <file>` (default `Mazes\classic.txt` next to the exe, then a built-in maze),
-`--map` (mini map on at start), `--seed <n>` (fixed random seed, 0 = random).
+`--map` (mini map on at start), `--seed <n>` (fixed random seed, 0 = random), `--mute` (no sound).
 
 ## Architecture (one project, namespace `MidiMazeClone`)
 
@@ -43,6 +43,8 @@ Command line: `--maze <file>` (default `Mazes\classic.txt` next to the exe, then
 | `Controls.cs` | What a player wants to do this tick. The only input into the simulation. |
 | `World.cs` | The simulation: movement with wall sliding, firing, shot flight, hits, respawn, round winner. |
 | `BotBrain.cs` | Computer opponent; fills `Controls` like a keyboard would. |
+| `IWorldEvents.cs` | Shots and hits reported by `World` to the presentation layer (`Game`). |
+| `Sounds.cs` | Sound effects synthesised in code (square waves, noise), played via `System.Media.SoundPlayer`. |
 | `Renderer.cs` | Raycaster for walls, z-buffer, sprite pass (smileys, shots), top-down map. |
 | `Mazes/*.txt` | Maze files, copied next to the exe. |
 
@@ -69,6 +71,11 @@ Command line: `--maze <file>` (default `Mazes\classic.txt` next to the exe, then
   time (slides along walls). Shots move in 0.1-cell sub-steps so they cannot tunnel.
 - **Internal resolution 320x200** for the ST look. Higher resolutions are only a constant change
   (`Game.ViewWidth/ViewHeight`); the renderer scales with the focal length.
+- **Sound** is generated at startup (no files) and played with `SoundPlayer`, which can only play
+  one sound at a time. A priority plus "busy until" time keeps a hit from being cut by a distant
+  shot. `World` raises `IWorldEvents`; `Game` decides what the local player hears (own shots
+  always, others within `HearingRange`). If overlapping sounds or volume by distance are ever
+  wanted, the upgrade path is a small waveOut mixer via P/Invoke, still without libraries.
 
 ## Screenshot mode (visual checks without a window)
 
@@ -115,7 +122,7 @@ Open / next ideas (decide together, none started):
 
 - **LAN multiplayer** for up to four humans over UDP. Simulation is deterministic and
   input-driven, so lockstep (exchange `Controls` per tick) or host-authoritative are both open.
-- **Polish:** sound (hit, shot, respawn), wall edge lines or light distance fog for readability
+- **Polish:** respawn sound, wall edge lines or light distance fog for readability
   in long corridors, integer pixel scaling, a nicer HUD frame, crosshair question.
 - **Gameplay:** player-player collision (currently they pass through each other), bots avoid
   standing in each other's line, time-limited rounds, maze selection in-game.
