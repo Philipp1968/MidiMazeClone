@@ -47,7 +47,7 @@ Command line: `--maze <file>` (default `Mazes\classic.txt` next to the exe, then
 | `Sounds.cs` | Sound effects synthesised in code (square waves, noise); hands them to the mixer. |
 | `AudioMixer.cs` | Software mixer on the Win32 waveOut API via P/Invoke: background thread, 4 small buffers, up to 8 voices with volume. |
 | `Renderer.cs` | Raycaster for walls, z-buffer, sprite pass (smileys, shots), top-down map. |
-| `Mazes/*.txt` | Maze files, copied next to the exe. |
+| `Mazes/*.txt` | Maze files, copied next to the exe. `classic.txt` (default): rooms, 2-3 wide corridors, pillars, loops. `tunnels.txt`: the first maze, single-tile corridors only. |
 
 ## Key decisions
 
