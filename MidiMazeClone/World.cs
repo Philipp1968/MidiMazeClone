@@ -7,7 +7,7 @@ namespace MidiMazeClone
     /// </summary>
     public sealed class World
     {
-        public const double TurnSpeed = 2.6;          // radians per second
+        public const double TurnSpeed = 3.0;          // radians per second (2.6 felt a bit slow)
         public const double MoveSpeed = 2.4;          // cells per second
         public const double FireInterval = 0.5;       // seconds between two shots of one player
         public const double ShieldSeconds = 2.0;      // invulnerability after a respawn
