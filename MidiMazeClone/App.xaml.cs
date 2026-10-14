@@ -32,6 +32,7 @@ namespace MidiMazeClone
         private static void RenderScreenshot(Game game, StartupOptions options)
         {
             // Let the simulation run for a while so the screenshot is not just the first frame.
+            game.LocalControls.Forward = options.DriveForward;
             double simulated = 0.0;
             while (simulated < options.WarmupSeconds)
             {

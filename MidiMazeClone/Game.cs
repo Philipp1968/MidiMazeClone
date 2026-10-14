@@ -1,3 +1,6 @@
+using System.IO;
+using System.Globalization;
+
 namespace MidiMazeClone
 {
     /// <summary>
@@ -14,74 +17,79 @@ namespace MidiMazeClone
         public readonly Controls LocalControls;
         public bool ShowMap;
 
-        private double _time;
-
-        private static readonly int[] TestPatternColors =
-        {
-            0x000000, 0xE03030, 0x30E030, 0xE0E030,
-            0x3030E0, 0xE030E0, 0x30E0E0, 0xFFFFFF,
-        };
+        private readonly World _world;
+        private readonly Player _localPlayer;
+        private readonly Renderer _renderer;
 
         public Game(StartupOptions options)
         {
             Screen = new FrameBuffer(ViewWidth, ViewHeight);
-            LocalControls = new Controls();
             ShowMap = options.ShowMap;
+
+            Maze maze = LoadMaze(options.MazePath);
+
+            int seed = options.Seed;
+            if (seed == 0)
+            {
+                seed = Environment.TickCount;
+            }
+
+            _world = new World(maze, seed);
+            _localPlayer = _world.AddPlayer("YOU", Palette.PlayerColors[0], false);
+            LocalControls = _localPlayer.Controls;
+
+            _renderer = new Renderer(ViewWidth, ViewHeight);
+        }
+
+        /// <summary>
+        /// Maze lookup order: --maze path, then Mazes\classic.txt next to the exe, then the built-in one.
+        /// </summary>
+        private static Maze LoadMaze(string? requestedPath)
+        {
+            if (requestedPath != null)
+            {
+                return Maze.LoadFromFile(requestedPath);
+            }
+
+            string defaultPath = Path.Combine(AppContext.BaseDirectory, "Mazes", "classic.txt");
+            if (File.Exists(defaultPath))
+            {
+                return Maze.LoadFromFile(defaultPath);
+            }
+
+            return Maze.CreateBuiltIn();
         }
 
         public void Update(double dt)
         {
-            _time += dt;
+            _world.Update(dt);
         }
 
         public void Render(int fps)
         {
-            DrawTestPattern();
+            Screen.Clear(Palette.Black);
 
-            string title = "MIDIMAZE CLONE";
-            int titleX = (ViewWidth - FrameBuffer.TextWidth(title, 2)) / 2;
-            Screen.DrawTextShadowed(titleX, 80, title, Palette.White, 2);
+            // Milestone 2: the big top-down map is the main view.
+            Maze maze = _world.Maze;
+            int cellSize = Math.Min(ViewWidth / maze.Width, (ViewHeight - 20) / maze.Height);
+            if (cellSize < 1)
+            {
+                cellSize = 1;
+            }
+            int mapX = (ViewWidth - maze.Width * cellSize) / 2;
+            int mapY = 12;
+            _renderer.DrawMap(_world, Screen, mapX, mapY, cellSize);
 
-            string subtitle = "MILESTONE 1: WINDOW, BUFFER, LOOP";
-            int subtitleX = (ViewWidth - FrameBuffer.TextWidth(subtitle, 1)) / 2;
-            Screen.DrawTextShadowed(subtitleX, 100, subtitle, Palette.White, 1);
+            string position = "X " + _localPlayer.X.ToString("0.00", CultureInfo.InvariantCulture)
+                + "  Y " + _localPlayer.Y.ToString("0.00", CultureInfo.InvariantCulture)
+                + "  ANGLE " + (_localPlayer.Angle * 180.0 / Math.PI).ToString("0", CultureInfo.InvariantCulture);
+            Screen.DrawTextShadowed(2, 2, position, Palette.White, 1);
 
-            string controlsHint = "LEFT " + OnOff(LocalControls.TurnLeft)
-                + "  RIGHT " + OnOff(LocalControls.TurnRight)
-                + "  FWD " + OnOff(LocalControls.Forward)
-                + "  BACK " + OnOff(LocalControls.Backward)
-                + "  FIRE " + OnOff(LocalControls.Fire);
-            int hintX = (ViewWidth - FrameBuffer.TextWidth(controlsHint, 1)) / 2;
-            Screen.DrawTextShadowed(hintX, 180, controlsHint, Palette.White, 1);
+            string hint = "ARROWS/WASD MOVE   ESC QUIT";
+            Screen.DrawTextShadowed(2, ViewHeight - 9, hint, Palette.Grey, 1);
 
             string fpsText = fps + " FPS";
             Screen.DrawTextShadowed(ViewWidth - FrameBuffer.TextWidth(fpsText, 1) - 2, 2, fpsText, Palette.White, 1);
-        }
-
-        private static string OnOff(bool value)
-        {
-            if (value)
-            {
-                return "1";
-            }
-            return "0";
-        }
-
-        /// <summary>Moving diagonal colour bands, so a frozen loop is obvious at a glance.</summary>
-        private void DrawTestPattern()
-        {
-            int offset = (int)(_time * 60.0);
-            int[] pixels = Screen.Pixels;
-
-            for (int y = 0; y < ViewHeight; y++)
-            {
-                int rowStart = y * ViewWidth;
-                for (int x = 0; x < ViewWidth; x++)
-                {
-                    int band = ((x + y + offset) / 16) % TestPatternColors.Length;
-                    pixels[rowStart + x] = TestPatternColors[band];
-                }
-            }
         }
     }
 }

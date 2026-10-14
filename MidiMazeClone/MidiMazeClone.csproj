@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -7,5 +7,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Maze files are plain text next to the executable, so they can be edited without a rebuild. -->
+    <None Update="Mazes\*.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>
