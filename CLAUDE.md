@@ -96,7 +96,7 @@ connected (`Maze.CountReachableFrom` vs `CountFreeCells`), otherwise players spa
 
 ## Tuning constants
 
-Movement and rules in `World` (`TurnSpeed`, `MoveSpeed`, `FireInterval`, `ShieldSeconds`,
+Movement and rules in `World` (`TurnSpeed`, `BotTurnSpeed`, `MoveSpeed`, `FireInterval`, `ShieldSeconds`,
 `WinScore`), shot speed in `Shot`, field of view and smiley size in `Renderer`, bot behaviour
 in `BotBrain`, colours in `Palette`.
 

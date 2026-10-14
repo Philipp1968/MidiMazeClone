@@ -7,7 +7,8 @@ namespace MidiMazeClone
     /// </summary>
     public sealed class World
     {
-        public const double TurnSpeed = 3.0;          // radians per second (2.6 felt a bit slow)
+        public const double TurnSpeed = 3.0;          // radians per second for humans (2.6 felt a bit slow)
+        public const double BotTurnSpeed = 2.6;       // bots keep the old, slower rate
         public const double MoveSpeed = 2.4;          // cells per second
         public const double FireInterval = 0.5;       // seconds between two shots of one player
         public const double ShieldSeconds = 2.0;      // invulnerability after a respawn
@@ -86,13 +87,19 @@ namespace MidiMazeClone
 
             Controls controls = player.Controls;
 
+            double turnSpeed = TurnSpeed;
+            if (player.IsBot)
+            {
+                turnSpeed = BotTurnSpeed;
+            }
+
             if (controls.TurnLeft)
             {
-                player.Angle -= TurnSpeed * dt;
+                player.Angle -= turnSpeed * dt;
             }
             if (controls.TurnRight)
             {
-                player.Angle += TurnSpeed * dt;
+                player.Angle += turnSpeed * dt;
             }
             player.Angle = MathUtil.NormalizeAngle(player.Angle);
 
