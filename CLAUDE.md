@@ -4,6 +4,8 @@ Hobby remake of **MidiMaze** (Hybrid Arts, Atari ST, 1987): a first-person maze 
 smiley opponents. Plain Windows app in C# / WPF on .NET 10. No NuGet packages, no game engine,
 no 3D library: everything is drawn by hand into an `int[]` frame buffer and blitted once per frame.
 
+Repository: https://github.com/Philipp1968/MidiMazeClone (branch `main`).
+
 Personal working style and C# code style rules live in the user-level `~\.claude\CLAUDE.md`
 (simplistic, explicit C#: plain loops and `if`s, named variables, no LINQ chains, no
 expression-bodied members). This file holds the project specifics. Update it after
